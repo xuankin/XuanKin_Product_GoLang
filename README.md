@@ -1,4 +1,3 @@
-Dưới đây là file README.md đã được căn chỉnh lại toàn bộ formating, sửa lỗi hiển thị và cập nhật chuẩn xác theo ERD mới nhất của bạn.Bạn chỉ cần bấm nút Copy code ở góc trên cùng bên phải của khung dưới đây và dán đè toàn bộ vào file README.md của dự án là xong nhé:Markdown# Product Management System API
 
 ![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)
 ![Database](https://img.shields.io/badge/PostgreSQL-16-316192?style=flat&logo=postgresql)
