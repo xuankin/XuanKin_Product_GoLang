@@ -1,3 +1,4 @@
+# Product Management System API
 
 ![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)
 ![Database](https://img.shields.io/badge/PostgreSQL-16-316192?style=flat&logo=postgresql)
@@ -53,6 +54,8 @@ graph TD
 
     %% Async Sync Process
     Service -.->|Async Routine| ES
+
+
 ⚡ Key FeaturesAdvanced Catalog Management:Support for hierarchical Categories and Brands.Dynamic Global Attributes (e.g., Material, Style) configurable per product line via PRODUCT_ATTRIBUTE.Multi-language Support (i18n): Native JSONB storage for English and Vietnamese content.Deep 3-Tier Product Architecture:Product: Base information (Name, Description, Brand, Category).Variant: Groupings (e.g., "iPhone 15 Pro VN/A").Option: Specific sellable items with individual SKUs, Prices, and Weights (e.g., "Color: Black, Storage: 128GB").Smart Inventory Management:Option-Level Tracking: Inventory is strictly tied to specific VariantOption IDs.Multi-Warehouse: Track stock levels across different physical locations.Stock Movements: Audit trail for all inbound, outbound, and adjustment transactions (STOCK_MOVEMENT).Reservation Logic: Support for reserved quantities during checkout.High-Performance Search:Integrated Elasticsearch for typo-tolerant, full-text search.Real-time synchronization between PostgreSQL and Elasticsearch.Performance Optimization:Redis Caching strategy for high-traffic endpoints (Product Details, Listings).Optimized Database indexing and cascade deletions.📂 Database Schema (ER Diagram)The following Entity Relationship Diagram (ERD) illustrates the highly normalized database structure used in this project:Đoạn mãerDiagram
     PRODUCT ||--|{ PRODUCT_VARIANT : has
     PRODUCT }o--|| CATEGORY : belongs_to
@@ -97,20 +100,7 @@ graph TD
         uuid warehouse_id FK
         integer quantity
     }
-🛠 Tech StackComponentTechnologyDescriptionLanguageGo (Golang)Version 1.22+FrameworkGin GonicHigh-performance HTTP web frameworkDatabasePostgreSQLPrimary relational databaseORMGORMThe fantastic ORM library for GolangCachingRedisIn-memory data structure storeSearch EngineElasticsearchDistributed search and analytics engineConfigViperConfiguration managementUUIDGoogle UUIDUniversally Unique Identifier generation📂 Project StructurePlaintext.
-├── cmd/
-│   └── seed/            # Database seeding script
-├── config/              # Configuration (DB, Redis, ES, Viper)
-├── controller/          # HTTP Handlers (Gin)
-├── entity/              # Database Models (GORM structs)
-├── models/              # DTOs (Request/Response structs)
-├── repository/          # Data Access Layer (DAL)
-├── router/              # API Routes & Middleware setup
-├── service/             # Business Logic Layer
-├── app.env              # Environment variables
-├── main.go              # Application entry point
-└── go.mod               # Go module definition
-🚀 Getting StartedPrerequisitesGo 1.22 or higherDocker & Docker Compose (Recommended)PostgreSQL, Redis, Elasticsearch instances runningInstallationClone the repositoryBashgit clone [https://github.com/your-username/product-management-api.git](https://github.com/your-username/product-management-api.git)
+🛠 Tech StackComponentTechnologyDescriptionLanguageGo (Golang)Version 1.22+FrameworkGin GonicHigh-performance HTTP web frameworkDatabasePostgreSQLPrimary relational databaseORMGORMThe fantastic ORM library for GolangCachingRedisIn-memory data structure storeSearch EngineElasticsearchDistributed search and analytics engineConfigViperConfiguration managementUUIDGoogle UUIDUniversally Unique Identifier generation🚀 Getting StartedPrerequisitesGo 1.22 or higherDocker & Docker Compose (Recommended)PostgreSQL, Redis, Elasticsearch instances runningInstallationClone the repositoryBashgit clone [https://github.com/your-username/product-management-api.git](https://github.com/your-username/product-management-api.git)
 cd product-management-api
 Environment ConfigurationCreate an app.env file in the root directory:Properties# Database Configuration
 DB_SOURCE=postgres://user:password@localhost:5432/product_db?sslmode=disable
