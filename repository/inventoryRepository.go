@@ -12,8 +12,10 @@ import (
 
 type InventoryRepository interface {
 	GetByVariantId(ctx context.Context, variantId uuid.UUID) ([]entity.Inventory, error)
-	UpdateStock(ctx context.Context, variantID uuid.UUID, warehouseID uuid.UUID, amount int, moveType string, reason string) error
+	GetByOptionId(ctx context.Context, optionId uuid.UUID) ([]entity.Inventory, error)
+	UpdateStock(ctx context.Context, optionID uuid.UUID, warehouseID uuid.UUID, amount int, moveType string, reason string) error
 }
+
 type inventoryRepository struct {
 	db *gorm.DB
 }
@@ -21,22 +23,52 @@ type inventoryRepository struct {
 func NewInventoryRepository(db *gorm.DB) *inventoryRepository {
 	return &inventoryRepository{db: db}
 }
+
 func (r *inventoryRepository) GetByVariantId(ctx context.Context, variantId uuid.UUID) ([]entity.Inventory, error) {
 	var inventories []entity.Inventory
 	err := r.db.WithContext(ctx).
-		Joins("Warehouse").
-		Where("variant_id = ?", variantId).
+		Joins("JOIN variant_options ON variant_options.id = inventories.option_id").
+		Where("variant_options.variant_id = ?", variantId).
+		Preload("Warehouse").
 		Find(&inventories).Error
 	return inventories, err
 }
-func (r *inventoryRepository) UpdateStock(ctx context.Context, variantID uuid.UUID, warehouseID uuid.UUID, amount int, moveType string, reason string) error {
+
+func (r *inventoryRepository) GetByOptionId(ctx context.Context, optionId uuid.UUID) ([]entity.Inventory, error) {
+	var inventories []entity.Inventory
+	err := r.db.WithContext(ctx).
+		Where("option_id = ?", optionId).
+		Preload("Warehouse").
+		Find(&inventories).Error
+	return inventories, err
+}
+
+func (r *inventoryRepository) UpdateStock(ctx context.Context, optionID uuid.UUID, warehouseID uuid.UUID, amount int, moveType string, reason string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var inv entity.Inventory
 
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("variant_id = ? AND warehouse_id = ?", variantID, warehouseID).
-			First(&inv).Error; err != nil {
-			return err
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("option_id = ? AND warehouse_id = ?", optionID, warehouseID).
+			First(&inv).Error
+
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+
+				if moveType == models.StockOut {
+					return errors.New("cannot out-stock: inventory record not found")
+				}
+
+				inv = entity.Inventory{
+					OptionID:    optionID,
+					WarehouseID: warehouseID,
+					Quantity:    0,
+				}
+				if err := tx.Create(&inv).Error; err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
 		}
 
 		change := amount
@@ -46,7 +78,7 @@ func (r *inventoryRepository) UpdateStock(ctx context.Context, variantID uuid.UU
 
 		newQuantity := inv.Quantity + change
 		if newQuantity < 0 {
-			return errors.New("Not enough inventory to complete the transaction")
+			return errors.New("not enough inventory to complete the transaction")
 		}
 
 		if err := tx.Model(&inv).Update("quantity", newQuantity).Error; err != nil {

@@ -106,3 +106,22 @@ func (ctrl *ProductController) GetProductList(c *gin.Context) {
 	}
 	SendResponse(c, true, "Get product list successfully", res, http.StatusOK)
 }
+func (ctrl *ProductController) SyncAttributes(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		SendError(c, "Invalid ID format", err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var req []models.ProductAttributeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		SendError(c, "Invalid data", err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := ctrl.service.SyncProductAttributes(c.Request.Context(), id, req); err != nil {
+		SendError(c, "Sync attributes error", err.Error(), http.StatusInternalServerError)
+		return
+	}
+	SendResponse(c, true, "Sync attributes successfully", nil, http.StatusOK)
+}

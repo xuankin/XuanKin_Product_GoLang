@@ -16,4 +16,5 @@ type CategoryResponse struct {
 	ID       uuid.UUID              `json:"id"`
 	Name     map[string]interface{} `json:"name"`
 	ParentID *uuid.UUID             `json:"parent_id,omitempty"`
+	Children []CategoryResponse     `json:"children"`
 }

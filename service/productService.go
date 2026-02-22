@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
-	"log"
 	"strings"
 	"time"
 )
@@ -19,7 +18,8 @@ type ProductService interface {
 	UpdateById(ctx context.Context, id uuid.UUID, req models.UpdateProductRequest) (*models.ProductResponse, error)
 	DeleteById(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, page, limit int) (*models.PaginationResponse, error)
-	Search(ctx context.Context, params models.FilterParams) (*models.PaginationResponse, error) // Thêm method Search
+	Search(ctx context.Context, params models.FilterParams) (*models.PaginationResponse, error)
+	SyncProductAttributes(ctx context.Context, productID uuid.UUID, attributes []models.ProductAttributeRequest) error
 }
 
 type productService struct {
@@ -46,102 +46,13 @@ func NewProductService(
 	}
 }
 
-func (s *productService) syncToElasticsearch(p *entity.Product) {
-
-	go func(product entity.Product) {
-		ctx := context.Background()
-
-		minPrice := 0.0
-		maxPrice := 0.0
-		if len(product.Variants) > 0 {
-			minPrice = product.Variants[0].Price
-			maxPrice = product.Variants[0].Price
-			for _, v := range product.Variants {
-				if v.Price < minPrice {
-					minPrice = v.Price
-				}
-				if v.Price > maxPrice {
-					maxPrice = v.Price
-				}
-			}
-		}
-
-		attrMap := make(map[string]map[string]bool)
-		for _, v := range product.Variants {
-			for _, attrVal := range v.Attributes {
-
-				nameMap := toMap(attrVal.Attribute.Name)
-				valMap := toMap(attrVal.Value)
-
-				attrName := fmt.Sprintf("%v", nameMap["vi"])
-				attrVal := fmt.Sprintf("%v", valMap["vi"])
-
-				if attrName == "<nil>" || attrVal == "<nil>" {
-					continue
-				}
-
-				if attrMap[attrName] == nil {
-					attrMap[attrName] = make(map[string]bool)
-				}
-				attrMap[attrName][attrVal] = true
-			}
-		}
-
-		var esAttrs []models.EsAttributeSummary
-		for k, vMap := range attrMap {
-			var vals []string
-			for v := range vMap {
-				vals = append(vals, v)
-			}
-			esAttrs = append(esAttrs, models.EsAttributeSummary{Name: k, Values: vals})
-		}
-
-		primaryImg := ""
-		if len(product.Media) > 0 {
-			primaryImg = product.Media[0].URL
-		}
-
-		esProduct := &models.EsProductIndex{
-			ID:                product.ID,
-			Name:              toMap(product.Name),
-			Slug:              product.Slug,
-			Description:       toMap(product.Description),
-			CategoryID:        product.CategoryID,
-			CategoryName:      toMap(product.Category.Name),
-			BrandID:           product.BrandID,
-			BrandName:         toMap(product.Brand.Name),
-			Status:            product.Status,
-			MinPrice:          minPrice,
-			MaxPrice:          maxPrice,
-			AttributesSummary: esAttrs,
-			PrimaryImage:      primaryImg,
-			CreatedAt:         product.CreatedAt,
-		}
-
-		if err := s.esRepo.IndexProduct(ctx, esProduct); err != nil {
-			log.Printf("Failed to index product %s to ES: %v\n", product.ID, err)
-		} else {
-			log.Printf("Indexed product %s to ES successfully\n", product.ID)
-		}
-	}(*p)
-}
-
 func (s *productService) generateSlug(name map[string]interface{}) string {
 	var str string
-	if val, ok := name["en"]; ok && val != nil {
+	if val, ok := name["vi"]; ok && val != nil {
 		str = fmt.Sprintf("%v", val)
-	} else if val, ok := name["vi"]; ok && val != nil {
+	} else if val, ok := name["en"]; ok && val != nil {
 		str = fmt.Sprintf("%v", val)
 	} else {
-		for _, v := range name {
-			if v != nil {
-				str = fmt.Sprintf("%v", v)
-				break
-			}
-		}
-	}
-
-	if str == "" {
 		str = "product"
 	}
 	return strings.ToLower(strings.ReplaceAll(str, " ", "-")) + "-" + uuid.New().String()[:8]
@@ -164,24 +75,114 @@ func (s *productService) mapToProductResponse(p *entity.Product) *models.Product
 			Logo: p.Brand.Logo,
 		},
 	}
+
+	for _, pa := range p.ProductAttributes {
+		var values []interface{}
+		for _, pav := range pa.Values {
+			values = append(values, toMap(pav.Value))
+		}
+		attrName := map[string]interface{}{"vi": "Unknown"}
+		if pa.Attribute.ID != uuid.Nil {
+			attrName = toMap(pa.Attribute.Name)
+		}
+
+		res.Attributes = append(res.Attributes, models.ProductAttributeDetail{
+			AttributeID:   pa.AttributeID,
+			AttributeName: attrName,
+			Values:        values,
+		})
+	}
+
 	for _, v := range p.Variants {
 		vRes := models.VariantResponse{
-			ID:        v.ID,
-			SKU:       v.SKU,
-			Price:     v.Price,
-			SalePrice: v.SalePrice,
-			Weight:    v.Weight,
-			Status:    v.Status,
+			ID:     v.ID,
+			Code:   v.Code,
+			Name:   toMap(v.Name),
+			Status: v.Status,
 		}
-		for _, attr := range v.Attributes {
-			vRes.Attributes = append(vRes.Attributes, models.AttributeValueResponse{
-				ID:    attr.ID,
-				Value: toMap(attr.Value),
-			})
+
+		for _, opt := range v.Options {
+			optRes := models.VariantOptionResponse{
+				ID:        opt.ID,
+				SKU:       opt.SKU,
+				Price:     opt.Price,
+				SalePrice: opt.SalePrice,
+				Weight:    opt.Weight,
+				Status:    opt.Status,
+			}
+			for _, val := range opt.Values {
+				optRes.Values = append(optRes.Values, models.VariantOptionValueResponse{
+					ID:        val.ID,
+					Name:      val.Name,
+					Value:     val.Value,
+					SortOrder: val.SortOrder,
+				})
+			}
+			for _, inv := range opt.Inventories {
+				optRes.Inventories = append(optRes.Inventories, models.InventoryResponse{
+					ID:       inv.ID,
+					OptionID: inv.OptionID,
+					Quantity: inv.Quantity,
+					Warehouse: models.WarehouseResponse{
+						ID:   inv.Warehouse.ID,
+						Name: toMap(inv.Warehouse.Name),
+					},
+				})
+			}
+			vRes.Options = append(vRes.Options, optRes)
 		}
 		res.Variants = append(res.Variants, vRes)
 	}
 	return res
+}
+
+func (s *productService) syncToElasticsearch(p *entity.Product) {
+	go func(product entity.Product) {
+		ctx := context.Background()
+		minPrice := 0.0
+		maxPrice := 0.0
+		first := true
+
+		for _, v := range product.Variants {
+			for _, opt := range v.Options {
+				if first {
+					minPrice = opt.Price
+					maxPrice = opt.Price
+					first = false
+				} else {
+					if opt.Price < minPrice {
+						minPrice = opt.Price
+					}
+					if opt.Price > maxPrice {
+						maxPrice = opt.Price
+					}
+				}
+			}
+		}
+
+		primaryImg := ""
+		if len(product.Media) > 0 {
+			primaryImg = product.Media[0].URL
+		}
+
+		esProduct := &models.EsProductIndex{
+			ID:           product.ID,
+			Name:         toMap(product.Name),
+			Slug:         product.Slug,
+			Description:  toMap(product.Description),
+			CategoryID:   product.CategoryID,
+			CategoryName: toMap(product.Category.Name),
+			BrandID:      product.BrandID,
+			BrandName:    toMap(product.Brand.Name),
+			Status:       product.Status,
+			MinPrice:     minPrice,
+			MaxPrice:     maxPrice,
+			PrimaryImage: primaryImg,
+			CreatedAt:    product.CreatedAt,
+		}
+
+		_ = s.esRepo.IndexProduct(ctx, esProduct)
+	}(*p)
 }
 
 func (s *productService) Create(ctx context.Context, req models.CreateProductRequest) (*models.ProductResponse, error) {
@@ -196,22 +197,52 @@ func (s *productService) Create(ctx context.Context, req models.CreateProductReq
 
 	for _, vReq := range req.Variants {
 		variant := entity.ProductVariant{
-			SKU:       vReq.SKU,
-			Price:     vReq.Price,
-			SalePrice: vReq.SalePrice,
-			Weight:    vReq.Weight,
-			Status:    models.StatusActive,
+			Code:   vReq.Code,
+			Name:   toJson(vReq.Name),
+			Status: models.StatusActive,
 		}
-		for _, attrId := range vReq.AttributeIds {
-			variant.Attributes = append(variant.Attributes, entity.AttributeValue{Base: entity.Base{ID: attrId}})
-		}
-		for _, sReq := range vReq.InitialStocks {
-			variant.Inventories = append(variant.Inventories, entity.Inventory{
-				WarehouseID: sReq.WarehouseID,
-				Quantity:    sReq.Quantity,
-			})
+
+		for _, optReq := range vReq.Options {
+			option := entity.VariantOption{
+				SKU:       optReq.SKU,
+				Price:     optReq.Price,
+				SalePrice: optReq.SalePrice,
+				Weight:    optReq.Weight,
+				Status:    models.StatusActive,
+			}
+
+			for _, valReq := range optReq.Values {
+				option.Values = append(option.Values, entity.VariantOptionValue{
+					Name:      valReq.Name,
+					Value:     valReq.Value,
+					SortOrder: valReq.SortOrder,
+				})
+			}
+
+			for _, stockReq := range optReq.Inventories {
+				option.Inventories = append(option.Inventories, entity.Inventory{
+					WarehouseID: stockReq.WarehouseID,
+					Quantity:    stockReq.Quantity,
+				})
+			}
+
+			variant.Options = append(variant.Options, option)
 		}
 		product.Variants = append(product.Variants, variant)
+	}
+
+	for _, attrReq := range req.Attributes {
+		pa := entity.ProductAttribute{
+			AttributeID: attrReq.AttributeID,
+		}
+
+		for _, val := range attrReq.Values {
+			pa.Values = append(pa.Values, entity.ProductAttributeValue{
+				Value: toJson(val),
+			})
+		}
+
+		product.ProductAttributes = append(product.ProductAttributes, pa)
 	}
 
 	res, err := s.repo.Create(ctx, product)
@@ -219,12 +250,9 @@ func (s *productService) Create(ctx context.Context, req models.CreateProductReq
 		return nil, err
 	}
 
-	// Invalidate Cache
-	s.cacheRepo.Delete(ctx, models.CacheKeyProductDetail+res.ID.String())
 	s.cacheRepo.DeleteByPrefix(ctx, models.CacheKeyProductList)
-
-	fullProduct, err := s.repo.GetById(ctx, res.ID)
-	if err == nil {
+	fullProduct, _ := s.repo.GetById(ctx, res.ID)
+	if fullProduct != nil {
 		s.syncToElasticsearch(fullProduct)
 	}
 
@@ -232,7 +260,7 @@ func (s *productService) Create(ctx context.Context, req models.CreateProductReq
 }
 
 func (s *productService) GetById(ctx context.Context, id uuid.UUID) (*models.ProductResponse, error) {
-	cacheKey := "product:detail" + id.String()
+	cacheKey := models.CacheKeyProductDetail + id.String()
 	var res models.ProductResponse
 	if err := s.cacheRepo.Get(ctx, cacheKey, &res); err == nil {
 		return &res, nil
@@ -251,28 +279,20 @@ func (s *productService) UpdateById(ctx context.Context, id uuid.UUID, req model
 	if err != nil {
 		return nil, err
 	}
-
+	if req.CategoryID != uuid.Nil {
+		p.CategoryID = req.CategoryID
+	}
+	if req.BrandID != uuid.Nil {
+		p.BrandID = req.BrandID
+	}
+	if req.Status != "" {
+		p.Status = req.Status
+	}
 	if req.Name != nil {
 		p.Name = toJson(req.Name)
 	}
 	if req.Description != nil {
 		p.Description = toJson(req.Description)
-	}
-	if req.CategoryID != uuid.Nil {
-		if _, err := s.categoryRepo.GetById(ctx, req.CategoryID); err != nil {
-			return nil, errors.New("Category ID does not exist")
-		}
-		p.CategoryID = req.CategoryID
-	}
-	if req.BrandID != uuid.Nil {
-
-		if _, err := s.brandRepo.GetByID(ctx, req.BrandID); err != nil {
-			return nil, errors.New("Brand ID does not exist")
-		}
-		p.BrandID = req.BrandID
-	}
-	if req.Status != "" {
-		p.Status = req.Status
 	}
 
 	if err := s.repo.Update(ctx, p); err != nil {
@@ -281,32 +301,37 @@ func (s *productService) UpdateById(ctx context.Context, id uuid.UUID, req model
 
 	s.cacheRepo.Delete(ctx, models.CacheKeyProductDetail+id.String())
 	s.cacheRepo.DeleteByPrefix(ctx, models.CacheKeyProductList)
-
-	fullProduct, err := s.repo.GetById(ctx, id)
-	if err == nil {
-		s.syncToElasticsearch(fullProduct)
-	}
+	fullProduct, _ := s.repo.GetById(ctx, id)
+	s.syncToElasticsearch(fullProduct)
 
 	return s.mapToProductResponse(p), nil
 }
 
 func (s *productService) DeleteById(ctx context.Context, id uuid.UUID) error {
 
-	s.cacheRepo.Delete(ctx, models.CacheKeyProductDetail+id.String())
-	s.cacheRepo.DeleteByPrefix(ctx, models.CacheKeyProductList)
-
-	err := s.repo.Delete(ctx, id)
+	p, err := s.repo.GetById(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	go func() {
-		if err := s.esRepo.DeleteProduct(context.Background(), id.String()); err != nil {
-			log.Printf("Failed to delete product %s from ES: %v", id.String(), err)
+	for _, variant := range p.Variants {
+		for _, option := range variant.Options {
+			for _, inv := range option.Inventories {
+				if inv.Quantity > 0 {
+					return errors.New("cannot delete product. Some options still have stock in warehouses")
+				}
+			}
 		}
-	}()
+	}
 
-	return nil
+	s.cacheRepo.Delete(ctx, models.CacheKeyProductDetail+id.String())
+	s.cacheRepo.DeleteByPrefix(ctx, models.CacheKeyProductList)
+
+	err = s.repo.Delete(ctx, id)
+	if err == nil {
+		go func() { s.esRepo.DeleteProduct(context.Background(), id.String()) }()
+	}
+	return err
 }
 
 func (s *productService) List(ctx context.Context, page, limit int) (*models.PaginationResponse, error) {
@@ -323,8 +348,8 @@ func (s *productService) List(ctx context.Context, page, limit int) (*models.Pag
 	}
 
 	var data []models.ProductResponse
-	for _, p := range products {
-		data = append(data, *s.mapToProductResponse(&p))
+	for i := range products {
+		data = append(data, *s.mapToProductResponse(&products[i]))
 	}
 
 	finalRes := &models.PaginationResponse{
@@ -337,18 +362,51 @@ func (s *productService) List(ctx context.Context, page, limit int) (*models.Pag
 	return finalRes, nil
 }
 
-// Search implements ProductService.
 func (s *productService) Search(ctx context.Context, params models.FilterParams) (*models.PaginationResponse, error) {
-	// Gọi xuống ES Repo
 	products, total, err := s.esRepo.SearchProducts(ctx, params)
 	if err != nil {
 		return nil, err
 	}
-
 	return &models.PaginationResponse{
 		Total:       total,
 		Data:        products,
 		CurrentPage: params.Page,
 		LastPage:    int((total + int64(params.Limit) - 1) / int64(params.Limit)),
 	}, nil
+}
+func (s *productService) SyncProductAttributes(ctx context.Context, productID uuid.UUID, reqAttributes []models.ProductAttributeRequest) error {
+
+	_, err := s.repo.GetById(ctx, productID)
+	if err != nil {
+		return errors.New("product does not exist")
+	}
+
+	var newAttributes []entity.ProductAttribute
+	for _, attrReq := range reqAttributes {
+		pa := entity.ProductAttribute{
+			ProductID:   productID,
+			AttributeID: attrReq.AttributeID,
+		}
+
+		for _, val := range attrReq.Values {
+			pa.Values = append(pa.Values, entity.ProductAttributeValue{
+				Value: toJson(val),
+			})
+		}
+		newAttributes = append(newAttributes, pa)
+	}
+
+	if err := s.repo.SyncAttributes(ctx, productID, newAttributes); err != nil {
+		return fmt.Errorf("failed to sync attributes: %w", err)
+	}
+
+	s.cacheRepo.Delete(ctx, models.CacheKeyProductDetail+productID.String())
+	s.cacheRepo.DeleteByPrefix(ctx, models.CacheKeyProductList)
+
+	fullProduct, _ := s.repo.GetById(ctx, productID)
+	if fullProduct != nil {
+		s.syncToElasticsearch(fullProduct)
+	}
+
+	return nil
 }

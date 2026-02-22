@@ -9,7 +9,7 @@ import (
 
 type InventoryService interface {
 	AdjustStock(ctx context.Context, req models.UpdateInventoryRequest) error
-	GetStockByVariant(ctx context.Context, variantId uuid.UUID) ([]models.InventoryResponse, error)
+	GetStockByOption(ctx context.Context, optionId uuid.UUID) ([]models.InventoryResponse, error)
 }
 type inventoryService struct {
 	repo repository.InventoryRepository
@@ -20,10 +20,11 @@ func NewInventoryService(repo repository.InventoryRepository) InventoryService {
 }
 
 func (s *inventoryService) AdjustStock(ctx context.Context, req models.UpdateInventoryRequest) error {
-	return s.repo.UpdateStock(ctx, req.VariantID, req.WarehouseID, req.Amount, req.Type, req.Reason)
+	return s.repo.UpdateStock(ctx, req.OptionID, req.WarehouseID, req.Amount, req.Type, req.Reason)
 }
-func (s *inventoryService) GetStockByVariant(ctx context.Context, variantId uuid.UUID) ([]models.InventoryResponse, error) {
-	invs, err := s.repo.GetByVariantId(ctx, variantId)
+
+func (s *inventoryService) GetStockByOption(ctx context.Context, optionId uuid.UUID) ([]models.InventoryResponse, error) {
+	invs, err := s.repo.GetByOptionId(ctx, optionId)
 	if err != nil {
 		return nil, err
 	}
@@ -31,12 +32,14 @@ func (s *inventoryService) GetStockByVariant(ctx context.Context, variantId uuid
 	for _, i := range invs {
 		res = append(res, models.InventoryResponse{
 			ID:               i.ID,
-			VariantID:        i.VariantID,
+			OptionID:         i.OptionID,
 			Quantity:         i.Quantity,
 			ReservedQuantity: i.ReservedQuantity,
 			Warehouse: models.WarehouseResponse{
-				ID:   i.Warehouse.ID,
-				Name: toMap(i.Warehouse.Name), Address: i.Warehouse.Address, Phone: i.Warehouse.Phone,
+				ID:      i.Warehouse.ID,
+				Name:    toMap(i.Warehouse.Name),
+				Address: i.Warehouse.Address,
+				Phone:   i.Warehouse.Phone,
 			},
 		})
 	}

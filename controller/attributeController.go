@@ -13,13 +13,12 @@ type AttributeController struct {
 }
 
 func NewAttributeController(service service.AttributeService) *AttributeController {
-	return &AttributeController{
-		service: service,
-	}
+	return &AttributeController{service: service}
 }
+
 func (ctrl *AttributeController) Create(c *gin.Context) {
 	var req models.CreateAttributeRequest
-	if err := c.ShouldBind(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		SendError(c, "Invalid data", err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -30,19 +29,7 @@ func (ctrl *AttributeController) Create(c *gin.Context) {
 	}
 	SendResponse(c, true, "Create successfully", res, http.StatusOK)
 }
-func (ctrl *AttributeController) AddValue(c *gin.Context) {
-	var req models.CreateAttributeValueRequest
-	if err := c.ShouldBind(&req); err != nil {
-		SendError(c, "Invalid data", err.Error(), http.StatusBadRequest)
-		return
-	}
-	res, err := ctrl.service.AddValue(c.Request.Context(), req)
-	if err != nil {
-		SendError(c, "Server error", err.Error(), http.StatusInternalServerError)
-		return
-	}
-	SendResponse(c, true, "Add successfully", res, http.StatusOK)
-}
+
 func (ctrl *AttributeController) Delete(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -55,6 +42,7 @@ func (ctrl *AttributeController) Delete(c *gin.Context) {
 	}
 	SendResponse(c, true, "Delete successfully", gin.H{"id": id}, http.StatusOK)
 }
+
 func (ctrl *AttributeController) Update(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -62,7 +50,7 @@ func (ctrl *AttributeController) Update(c *gin.Context) {
 		return
 	}
 	var req models.UpdateAttributeRequest
-	if err := c.ShouldBind(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		SendError(c, "Invalid data", err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -73,6 +61,7 @@ func (ctrl *AttributeController) Update(c *gin.Context) {
 	}
 	SendResponse(c, true, "Update successfully", attrUpdated, http.StatusOK)
 }
+
 func (ctrl *AttributeController) ListAttributes(c *gin.Context) {
 	listAttr, err := ctrl.service.ListAttributes(c.Request.Context())
 	if err != nil {
@@ -81,6 +70,7 @@ func (ctrl *AttributeController) ListAttributes(c *gin.Context) {
 	}
 	SendResponse(c, true, "List successfully", gin.H{"list": listAttr}, http.StatusOK)
 }
+
 func (ctrl *AttributeController) GetByID(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {

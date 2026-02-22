@@ -5,6 +5,7 @@ import "github.com/google/uuid"
 type CreateMediaRequest struct {
 	ProductID    uuid.UUID  `json:"product_id" binding:"required"`
 	VariantID    *uuid.UUID `json:"variant_id"`
+	OptionID     *uuid.UUID `json:"option_id"`
 	Type         string     `json:"type" binding:"required,oneof=IMAGE VIDEO"`
 	URL          string     `json:"url" binding:"required,url"`
 	ThumbnailURL string     `json:"thumbnail_url"`

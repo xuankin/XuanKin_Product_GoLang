@@ -22,16 +22,16 @@ type WarehouseResponse struct {
 }
 
 type UpdateInventoryRequest struct {
-	VariantID   uuid.UUID `json:"variant_id" binding:"required"`
+	OptionID    uuid.UUID `json:"option_id" binding:"required"`
 	WarehouseID uuid.UUID `json:"warehouse_id" binding:"required"`
 	Amount      int       `json:"amount" binding:"required"`
-	Type        string    `json:"type" binding:"required,oneof=IN OUT ADJUST"`
+	Type        string    `json:"type" binding:"required"`
 	Reason      string    `json:"reason"`
 }
 
 type InventoryResponse struct {
 	ID               uuid.UUID         `json:"id"`
-	VariantID        uuid.UUID         `json:"variant_id"`
+	OptionID         uuid.UUID         `json:"option_id"`
 	Warehouse        WarehouseResponse `json:"warehouse"`
 	Quantity         int               `json:"available_quantity"`
 	ReservedQuantity int               `json:"reserved_quantity"`

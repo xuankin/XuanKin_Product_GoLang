@@ -39,6 +39,7 @@ func NewMediaService(repo repository.MediaRepository, baseUrl string) MediaServi
 		baseUrl:   baseUrl,
 	}
 }
+
 func (s *mediaService) Upload(ctx context.Context, file io.Reader, filename string, req models.CreateMediaRequest) (*models.MediaResponse, error) {
 
 	buff := make([]byte, 512)
@@ -85,6 +86,7 @@ func (s *mediaService) Upload(ctx context.Context, file io.Reader, filename stri
 	mediaEntity := &entity.Media{
 		ProductID:    req.ProductID,
 		VariantID:    req.VariantID,
+		OptionID:     req.OptionID,
 		Type:         mediaType,
 		URL:          fileUrl,
 		ThumbnailURL: req.ThumbnailURL,

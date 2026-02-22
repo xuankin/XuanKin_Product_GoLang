@@ -72,3 +72,42 @@ func (ctrl *VariantController) GetVariantByID(c *gin.Context) {
 	}
 	SendResponse(c, true, "Get variant", variant, http.StatusOK)
 }
+func (ctrl *VariantController) AddOption(c *gin.Context) {
+	variantID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		SendError(c, "Invalid Variant ID format", err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var req models.VariantOptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		SendError(c, "Invalid data", err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := ctrl.service.AddOption(c.Request.Context(), variantID, req); err != nil {
+		SendError(c, "Error when add option", err.Error(), http.StatusInternalServerError)
+		return
+	}
+	SendResponse(c, true, "Add option successfully", nil, http.StatusOK)
+}
+
+func (ctrl *VariantController) UpdateOption(c *gin.Context) {
+	optionID, err := uuid.Parse(c.Param("optionId"))
+	if err != nil {
+		SendError(c, "Invalid Option ID format", err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var req models.UpdateVariantOptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		SendError(c, "Invalid data", err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := ctrl.service.UpdateOption(c.Request.Context(), optionID, req); err != nil {
+		SendError(c, "Error when update option", err.Error(), http.StatusInternalServerError)
+		return
+	}
+	SendResponse(c, true, "Update option successfully", nil, http.StatusOK)
+}

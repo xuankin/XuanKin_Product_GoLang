@@ -6,8 +6,8 @@ import (
 	"Product_Mangement_Api/repository"
 	"Product_Mangement_Api/service"
 	"context"
-	"github.com/gin-gonic/gin"
 
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -67,12 +67,15 @@ func SetupRouter(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		api.GET("/products/:id", productCtrl.GetProductById)
 		api.PUT("/products/:id", productCtrl.Update)
 		api.DELETE("/products/:id", productCtrl.Delete)
+		api.POST("/products/:id/attributes", productCtrl.SyncAttributes)
 
-		// --- Variant Routes ---
+		// --- Variant & Option Routes ---
 		api.POST("/variants", variantCtrl.Create)
 		api.GET("/variants/:id", variantCtrl.GetVariantByID)
 		api.PUT("/variants/:id", variantCtrl.UpdateVariant)
 		api.DELETE("/variants/:id", variantCtrl.DeleteVariant)
+		api.POST("/variants/:id/options", variantCtrl.AddOption)
+		api.PUT("/options/:optionId", variantCtrl.UpdateOption)
 
 		// --- Category Routes ---
 		api.POST("/categories", categoryCtrl.CreateCategory)
@@ -89,7 +92,6 @@ func SetupRouter(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 
 		// --- Attribute Routes ---
 		api.POST("/attributes", attributeCtrl.Create)
-		api.POST("/attributes/values", attributeCtrl.AddValue)
 		api.GET("/attributes", attributeCtrl.ListAttributes)
 		api.GET("/attributes/:id", attributeCtrl.GetByID)
 		api.PUT("/attributes/:id", attributeCtrl.Update)
@@ -104,7 +106,6 @@ func SetupRouter(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 
 		// --- Inventory Routes ---
 		api.POST("/inventory/adjust", inventoryCtrl.AdjustStock)
-		api.GET("/inventory/variant/:id", inventoryCtrl.GetStockByVariant)
-
+		api.GET("/inventory/option/:id", inventoryCtrl.GetStockByOption)
 	}
 }

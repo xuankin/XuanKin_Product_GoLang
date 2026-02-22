@@ -11,4 +11,5 @@ type Media struct {
 	ThumbnailURL string     `gorm:"size:255" json:"thumbnail_url"`
 	IsPrimary    bool       `gorm:"default:false" json:"is_primary"`
 	SortOrder    int        `gorm:"default:0" json:"sort_order"`
+	OptionID     *uuid.UUID `gorm:"type:uuid" json:"option_id"`
 }

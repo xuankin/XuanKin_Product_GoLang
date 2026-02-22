@@ -14,8 +14,9 @@ type Product struct {
 	BrandID     uuid.UUID      `gorm:"type:uuid;not null" json:"brand_id"`
 	Status      string         `gorm:"type:varchar(20);default:'ACTIVE'" json:"status"`
 
-	Category Category         `gorm:"foreignKey:CategoryID" json:"category"`
-	Brand    Brand            `gorm:"foreignKey:BrandID" json:"brand"`
-	Variants []ProductVariant `gorm:"foreignKey:ProductID" json:"variants"`
-	Media    []Media          `gorm:"foreignKey:ProductID" json:"media"`
+	Category          Category           `gorm:"foreignKey:CategoryID" json:"category"`
+	Brand             Brand              `gorm:"foreignKey:BrandID" json:"brand"`
+	Variants          []ProductVariant   `gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE;" json:"variants"`
+	Media             []Media            `gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE;" json:"media"`
+	ProductAttributes []ProductAttribute `gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE;" json:"product_attribute"`
 }

@@ -16,7 +16,21 @@ func main() {
 	}
 
 	db := config.ConnectDB(&cfg)
-	db.AutoMigrate(&entity.Product{}, &entity.Brand{}, &entity.Category{}, &entity.Inventory{}, &entity.Warehouse{}, &entity.Media{}, &entity.ProductVariant{}, &entity.StockMovement{}, &entity.Attribute{}, &entity.AttributeValue{})
+	db.AutoMigrate(
+		&entity.Product{},
+		&entity.Brand{},
+		&entity.Category{},
+		&entity.Inventory{},
+		&entity.Warehouse{},
+		&entity.Media{},
+		&entity.ProductVariant{},
+		&entity.VariantOption{},
+		&entity.VariantOptionValue{},
+		&entity.StockMovement{},
+		&entity.Attribute{},
+		&entity.ProductAttribute{},
+		&entity.ProductAttributeValue{},
+	)
 	r := gin.Default()
 
 	router.SetupRouter(r, db, &cfg)
