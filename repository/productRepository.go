@@ -70,6 +70,9 @@ func (r *productRepository) GetById(ctx context.Context, id uuid.UUID) (*entity.
 		Preload("Variants.Options.Values").
 		Preload("Variants.Options.Inventories.Warehouse").
 		Preload("Variants.Options.Media").
+		Preload("Variants.Options.Inventories.Warehouse").
+		Preload("ProductAttributes.Attribute").
+		Preload("ProductAttributes.Values").
 		First(&p, "id = ?", id).Error
 	if err != nil {
 		return nil, err

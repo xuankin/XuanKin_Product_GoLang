@@ -165,6 +165,36 @@ func (s *productService) syncToElasticsearch(p *entity.Product) {
 			primaryImg = product.Media[0].URL
 		}
 
+		var attributesSummary []models.EsAttributeSummary
+		for _, pa := range product.ProductAttributes {
+
+			attrNameMap := toMap(pa.Attribute.Name)
+			attrName := ""
+
+			if val, ok := attrNameMap["vi"]; ok && val != nil {
+				attrName = fmt.Sprintf("%v", val)
+			} else if val, ok := attrNameMap["en"]; ok && val != nil {
+				attrName = fmt.Sprintf("%v", val)
+			}
+
+			var attrValues []string
+			for _, pav := range pa.Values {
+				valMap := toMap(pav.Value)
+				if val, ok := valMap["vi"]; ok && val != nil {
+					attrValues = append(attrValues, fmt.Sprintf("%v", val))
+				} else if val, ok := valMap["en"]; ok && val != nil {
+					attrValues = append(attrValues, fmt.Sprintf("%v", val))
+				}
+			}
+
+			if attrName != "" || len(attrValues) > 0 {
+				attributesSummary = append(attributesSummary, models.EsAttributeSummary{
+					Name:   attrName,
+					Values: attrValues,
+				})
+			}
+		}
+
 		esProduct := &models.EsProductIndex{
 			ID:           product.ID,
 			Name:         toMap(product.Name),
@@ -179,12 +209,14 @@ func (s *productService) syncToElasticsearch(p *entity.Product) {
 			MaxPrice:     maxPrice,
 			PrimaryImage: primaryImg,
 			CreatedAt:    product.CreatedAt,
+
+			// Gán biến attributesSummary đúng chuẩn
+			AttributesSummary: attributesSummary,
 		}
 
 		_ = s.esRepo.IndexProduct(ctx, esProduct)
 	}(*p)
 }
-
 func (s *productService) Create(ctx context.Context, req models.CreateProductRequest) (*models.ProductResponse, error) {
 	product := &entity.Product{
 		Name:        toJson(req.Name),
@@ -302,7 +334,9 @@ func (s *productService) UpdateById(ctx context.Context, id uuid.UUID, req model
 	s.cacheRepo.Delete(ctx, models.CacheKeyProductDetail+id.String())
 	s.cacheRepo.DeleteByPrefix(ctx, models.CacheKeyProductList)
 	fullProduct, _ := s.repo.GetById(ctx, id)
-	s.syncToElasticsearch(fullProduct)
+	if fullProduct != nil {
+		s.syncToElasticsearch(fullProduct)
+	}
 
 	return s.mapToProductResponse(p), nil
 }

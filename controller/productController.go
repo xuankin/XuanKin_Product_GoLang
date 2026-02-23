@@ -96,8 +96,15 @@ func (ctrl *ProductController) Delete(c *gin.Context) {
 	SendResponse(c, true, "Delete product successfully", nil, http.StatusOK)
 }
 func (ctrl *ProductController) GetProductList(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if err != nil || limit < 1 {
+		limit = 10
+	}
 
 	res, err := ctrl.service.List(c.Request.Context(), page, limit)
 	if err != nil {

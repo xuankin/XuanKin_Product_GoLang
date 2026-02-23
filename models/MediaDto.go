@@ -7,7 +7,7 @@ type CreateMediaRequest struct {
 	VariantID    *uuid.UUID `json:"variant_id"`
 	OptionID     *uuid.UUID `json:"option_id"`
 	Type         string     `json:"type" binding:"required,oneof=IMAGE VIDEO"`
-	URL          string     `json:"url" binding:"required,url"`
+	URL          string     `form:"url"`
 	ThumbnailURL string     `json:"thumbnail_url"`
 	IsPrimary    bool       `json:"is_primary"`
 	SortOrder    int        `json:"sort_order"`

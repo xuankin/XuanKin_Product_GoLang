@@ -9,7 +9,7 @@ type CreateProductRequest struct {
 	BrandID     uuid.UUID                 `json:"brand_id" binding:"required"`
 	Status      string                    `json:"status" binding:"oneof=ACTIVE INACTIVE"`
 	Variants    []ProductVariantRequest   `json:"variants"`
-	Slug        string                    `json:"slug" binding:"required"`
+	Slug        string                    `json:"slug"`
 	Attributes  []ProductAttributeRequest `json:"attributes"`
 }
 type UpdateProductRequest struct {
