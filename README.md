@@ -37,22 +37,21 @@ The project follows **Clean Architecture principles**, separating:
 * Business Logic
 * Data Access Layer
 
-```mermaid
 graph TD
     subgraph Client_Side
-        Client[Web/Mobile Client]
-        Postman[Postman/Tester]
+        Client["Web / Mobile Client"]
+        Postman["Postman / Tester"]
     end
 
     subgraph API_Gateway
-        Gin[Gin Web Server]
-        Middleware[Middleware (CORS, Logger, Recovery)]
+        Gin["Gin Web Server"]
+        Middleware["Middleware: CORS, Logger, Recovery"]
     end
 
     subgraph Business_Logic
-        Controller[Controllers]
-        Service[Services]
-        Repo[Repositories]
+        Controller["Controllers"]
+        Service["Services"]
+        Repo["Repositories"]
     end
 
     subgraph Infrastructure
@@ -72,9 +71,6 @@ graph TD
     Repo -->|Search| ES
 
     Service -.->|Async Sync| ES
-```
-
----
 
 # ⚡ Key Features
 
