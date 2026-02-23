@@ -37,7 +37,8 @@ The project follows **Clean Architecture principles**, separating:
 * Business Logic
 * Data Access Layer
 
-graph TD
+```mermaid
+flowchart TD
     subgraph Client_Side
         Client["Web / Mobile Client"]
         Postman["Postman / Tester"]
@@ -60,9 +61,10 @@ graph TD
         ES[(Elasticsearch)]
     end
 
-    Client -->|HTTP/REST| Gin
-    Postman -->|HTTP/REST| Gin
-    Gin --> Middleware --> Controller
+    Client -->|HTTP REST| Gin
+    Postman -->|HTTP REST| Gin
+    Gin --> Middleware
+    Middleware --> Controller
     Controller --> Service
     Service --> Repo
 
@@ -71,7 +73,7 @@ graph TD
     Repo -->|Search| ES
 
     Service -.->|Async Sync| ES
-
+```
 # ⚡ Key Features
 
 ## 📦 Advanced Catalog Management
