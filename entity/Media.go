@@ -4,7 +4,7 @@ import "github.com/google/uuid"
 
 type Media struct {
 	Base
-	ProductID    uuid.UUID  `gorm:"type:uuid;not null" json:"product_id"`
+	ProductID    *uuid.UUID `gorm:"type:uuid" json:"product_id"`
 	VariantID    *uuid.UUID `gorm:"type:uuid" json:"variant_id"`
 	Type         string     `gorm:"type:varchar(20)" json:"type"`
 	URL          string     `gorm:"size:255;not null" json:"url"`

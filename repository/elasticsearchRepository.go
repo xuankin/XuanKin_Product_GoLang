@@ -6,10 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/elastic/go-elasticsearch/v7"
-	"github.com/elastic/go-elasticsearch/v7/esapi"
 	"log"
 	"strings"
+
+	"github.com/elastic/go-elasticsearch/v7"
+	"github.com/elastic/go-elasticsearch/v7/esapi"
 )
 
 type ElasticsearchRepository interface {
@@ -28,37 +29,50 @@ func NewElasticsearchRepository(client *elasticsearch.Client) ElasticsearchRepos
 	return &esRepository{client: client, index: "products"}
 }
 
-// 1. Khởi tạo Index với Mapping chuẩn (Quan trọng)
+// 1. Khởi tạo Index với Mapping chuẩn (Đã bổ sung đầy đủ các trường)
 func (r *esRepository) CreateIndexIfNotExists(ctx context.Context) error {
+	// Kiểm tra xem index đã tồn tại chưa
 	exists, _ := r.client.Indices.Exists([]string{r.index})
 	if exists.StatusCode == 200 {
 		return nil
 	}
 
 	mapping := `{
-		"settings": { "number_of_shards": 1, "number_of_replicas": 0 },
-		"mappings": {
-			"properties": {
-				"name": { "properties": { "vi": { "type": "text" }, "en": { "type": "text" } } },
-				"attributes_summary": { 
-					"type": "nested",
-					"properties": {
-						"name": { "type": "keyword" },
-						"values": { "type": "keyword" }
-					}
-				},
-				"min_price": { "type": "double" },
-				"max_price": { "type": "double" },
-				"created_at": { "type": "date" }
-			}
-		}
-	}`
+       "settings": { 
+           "number_of_shards": 1, 
+           "number_of_replicas": 0 
+       },
+       "mappings": {
+          "properties": {
+             "name": { "properties": { "vi": { "type": "text" }, "en": { "type": "text" } } },
+             "description": { "properties": { "vi": { "type": "text" }, "en": { "type": "text" } } },
+             "category_name": { "properties": { "vi": { "type": "text" }, "en": { "type": "text" } } },
+             "brand_name": { "properties": { "vi": { "type": "text" }, "en": { "type": "text" } } },
+             "slug": { "type": "keyword" },
+             "status": { "type": "keyword" },
+             "primary_image": { "type": "keyword" },
+             "category_id": { "type": "keyword" },
+             "brand_id": { "type": "keyword" },
+             "attributes_summary": { 
+                "type": "nested",
+                "properties": {
+                   "name": { "type": "keyword" },
+                   "values": { "type": "keyword" }
+                }
+             },
+             "min_price": { "type": "double" },
+             "max_price": { "type": "double" },
+             "created_at": { "type": "date" }
+          }
+       }
+    }`
 
 	res, err := r.client.Indices.Create(r.index, r.client.Indices.Create.WithBody(strings.NewReader(mapping)))
 	if err != nil {
 		return err
 	}
 	defer res.Body.Close()
+
 	if res.IsError() {
 		return fmt.Errorf("error creating index: %s", res.String())
 	}
@@ -104,26 +118,61 @@ func (r *esRepository) DeleteProduct(ctx context.Context, productID string) erro
 	return nil
 }
 
+// 2. Tối ưu hàm Search (Xử lý thông minh: Gõ sai + Gõ thiếu + Chuỗi con)
 func (r *esRepository) SearchProducts(ctx context.Context, params models.FilterParams) ([]models.EsProductIndex, int64, error) {
 	var buf bytes.Buffer
 
+	// Khởi tạo query cơ bản chứa phân trang
 	query := map[string]interface{}{
 		"from": (params.Page - 1) * params.Limit,
 		"size": params.Limit,
-		"query": map[string]interface{}{
-			"bool": map[string]interface{}{
-				"must": []interface{}{
-					map[string]interface{}{"match_all": map[string]interface{}{}},
-				},
-			},
-		},
 	}
 
 	if params.Search != "" {
 		query["query"] = map[string]interface{}{
-			"multi_match": map[string]interface{}{
-				"query":  params.Search,
-				"fields": []string{"name.vi", "name.en", "description.vi", "description.en", "slug"},
+			"bool": map[string]interface{}{
+				// Bắt buộc sản phẩm phải đang ACTIVE
+				"must": []interface{}{
+					map[string]interface{}{
+						"match": map[string]interface{}{
+							"status": "ACTIVE",
+						},
+					},
+				},
+				// Điều kiện tìm kiếm (chỉ cần khớp 1 trong 3 cái bên dưới là được)
+				"should": []interface{}{
+					// 1. Tìm kiếm mờ (Sai chính tả)
+					map[string]interface{}{
+						"multi_match": map[string]interface{}{
+							"query":     params.Search,
+							"fields":    []string{"name.vi^4", "name.en^4", "brand_name.vi^3", "brand_name.en^3", "category_name.vi^2", "category_name.en^2", "description.vi", "description.en", "slug"},
+							"fuzziness": "AUTO",
+						},
+					},
+					// 2. Tìm kiếm tiền tố (Gõ bị thiếu chữ)
+					map[string]interface{}{
+						"multi_match": map[string]interface{}{
+							"query":  params.Search,
+							"type":   "phrase_prefix",
+							"fields": []string{"name.vi^4", "name.en^4", "brand_name.vi^3", "brand_name.en^3", "category_name.vi^2", "category_name.en^2"},
+						},
+					},
+					// 3. Chuỗi con (Wildcard giống LIKE %...%)
+					map[string]interface{}{
+						"query_string": map[string]interface{}{
+							"query":  "*" + params.Search + "*",
+							"fields": []string{"name.vi^4", "name.en^4", "slug"},
+						},
+					},
+				},
+				"minimum_should_match": 1,
+			},
+		}
+	} else {
+		// Nếu không có từ khóa tìm kiếm thì chỉ lấy sản phẩm ACTIVE
+		query["query"] = map[string]interface{}{
+			"match": map[string]interface{}{
+				"status": "ACTIVE",
 			},
 		}
 	}
@@ -155,7 +204,8 @@ func (r *esRepository) SearchProducts(ctx context.Context, params models.FilterP
 	total := int64(hits["total"].(map[string]interface{})["value"].(float64))
 	hitList := hits["hits"].([]interface{})
 
-	var products []models.EsProductIndex
+	products := []models.EsProductIndex{}
+
 	for _, hit := range hitList {
 		source := hit.(map[string]interface{})["_source"]
 		sourceBytes, _ := json.Marshal(source)
